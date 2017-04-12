@@ -15,7 +15,7 @@ my $selection_strength = $ARGV[3];
 my $n_selected_loci = $ARGV[4];
 my $selection_type = $ARGV[5];
 my $sample_size = $ARGV[6];
-
+my $epistasis_selection = $ARGV[7];
 my $chrfile = "/home/owens/ref/HanXRQr1.0-20151230.bp_to_cM.280x801.chrsizes.txt";
 my %chrlengths;
 my @chrs;
@@ -35,7 +35,10 @@ my $n_chromosomes = scalar @chrs;
 #print "#s:$selection_strength";
 #print "\n#n_s:$n_selected_loci";
 my $total_s = 1 -(1-$selection_strength)**($n_selected_loci * $n_chromosomes);
-print STDERR "\n#total_s = $total_s";
+if ($epistasis_selection =~ m/T/){
+  $total_s = 1 -(1-$selection_strength)**(($n_selected_loci * $n_chromosomes) + ($n_selected_loci * (int($n_chromosomes/2)) ));
+}
+print STDERR "#total_s = $total_s\n";
 my $direction = 0;
 my %loci;
 my %loci_direction;
@@ -83,9 +86,12 @@ foreach my $gen (1..$generations){
       my $fitness = 1;
       my %tmp_gamete_storage;
       my $current_sample_ID = $current_sample_size+1;
+      my %epistasis_tracker; #this tracks the number of P1 alleles in both sites
+      my %epistasis_counter; #This tracks the number of sites in each pair (makes sure there are two, not one).
+      my $chr_counter = 0;
       #For each chromosome
       foreach my $chr (@chrs){
-
+	$chr_counter++;
         #Generate both gametes
         my $input_chr_1_0 = "X\t0\t$chr\t$previous_generation{$parent1}{$chr}{0}";
         my $input_chr_1_1 = "X\t1\t$chr\t$previous_generation{$parent1}{$chr}{1}";
@@ -101,7 +107,7 @@ foreach my $gen (1..$generations){
           #                       print STDERR "My heterozygosity measured is $het\n";
           push(@current_heterozygosity,$het);
         }
-        if ($loci_selection == 1){
+        if ($loci_selection =~ m/T/){
 	  my @current_selected_loci = keys %{$loci{$chr}};
           #SELECTION FUNCTION
 	  my @bases1 = split(//,$gamete1);
@@ -118,6 +124,10 @@ foreach my $gen (1..$generations){
 	      $state = "1";
 	      $selected_loci_homo++;
 	    }
+	    my $half_chr = int($chr_counter/2);
+	    $epistasis_tracker{"$loci_direction{$chr}{$selected_locus}:$half_chr"} += $bases1[$selected_locus];
+	    $epistasis_tracker{"$loci_direction{$chr}{$selected_locus}:$half_chr"} += $bases2[$selected_locus];
+	    $epistasis_counter{"$loci_direction{$chr}{$selected_locus}:$half_chr"}++;
 	    if ($selection_type eq "U"){
 	      if ($state eq "H"){
 		$fitness = $fitness * (1 - $selection_strength);
@@ -131,10 +141,20 @@ foreach my $gen (1..$generations){
 		$fitness = $fitness * (1 - $selection_strength);
 	      }
 	    }else{die "Selection type must be U or D"};
+	      
           }
 	}
         $tmp_gamete_storage{$chr}{0} = $gamete1;
         $tmp_gamete_storage{$chr}{1} = $gamete2;
+      }
+      if ($epistasis_selection =~ m/T/){
+	foreach my $i (keys %epistasis_counter){
+	  if ($epistasis_counter{$i} == 2){
+	    if (($epistasis_tracker{$i} ne "0") and ($epistasis_tracker{$i} ne "4")){
+	      $fitness = $fitness * (1 - $selection_strength);
+	    }
+	  }
+	}
       }
       my $luck = rand(1);
       if ($luck > $fitness){
@@ -160,7 +180,7 @@ foreach my $gen (1..$generations){
     my $mean_het = Math::NumberCruncher::Mean(\@current_heterozygosity);
     my $std_het = Math::NumberCruncher::StandardDeviation(\@current_heterozygosity);
     print STDERR "Generation $gen: $mean_het +- $std_het";
-    if ($loci_selection == 1){
+    if ($loci_selection =~ m/T/){
       unless($selected_loci_het){$selected_loci_het = 0;}
       my $selected_loci_heterozygosity = $selected_loci_het / ($selected_loci_homo + $selected_loci_het);
       print STDERR "\tSelected het = $selected_loci_heterozygosity";
