@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 #This script takes the simulated ancestry from a hybrid species simulation and calculates the true ancestry proportion for 10MB windows of the genome.
-my $ref_file = "/home/owens/ref/HanXRQr1.0-20151230.bp_to_cM.280x801.windows.txt";
+my $ref_file = "/home/gowens/ref/HanXRQr1.0-20151230.bp_to_cM.280x801.windows.txt";
 
 my $samplecounter;
 my $HA17_counter= 0;
